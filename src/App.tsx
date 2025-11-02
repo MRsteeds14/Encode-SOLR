@@ -10,7 +10,7 @@ import { WalletButton } from '@/components/wallet/WalletButton'
 import { StatsCard } from '@/components/dashboard/StatsCard'
 import { EnergyChart } from '@/components/dashboard/EnergyChart'
 import { TransactionFeed } from '@/components/dashboard/TransactionFeed'
-import { Hero3D } from '@/components/dashboard/Hero3D'
+import Web3Background from '@/components/dashboard/Web3Background'
 import { GlowOrb } from '@/components/dashboard/GlowOrb'
 import { EnergyInput } from '@/components/minting/EnergyInput'
 import { AgentStatus } from '@/components/minting/AgentStatus'
@@ -208,7 +208,7 @@ function App() {
   if (!wallet?.connected) {
     return (
       <div className="min-h-screen bg-background relative overflow-hidden">
-        <Hero3D />
+        <Web3Background />
         <Toaster position="top-right" />
         
         <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
@@ -275,7 +275,7 @@ function App() {
   return (
     <div className="min-h-screen bg-background relative">
       <div className="absolute inset-0 opacity-30">
-        <Hero3D />
+        <Web3Background />
       </div>
       
       <Toaster position="top-right" />
