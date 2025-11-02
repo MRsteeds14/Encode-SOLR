@@ -98,11 +98,11 @@ export default function Web3Background() {
         ctx.translate(node.x, node.y)
 
         ctx.shadowBlur = 15
-        ctx.shadowColor = 'rgba(100, 180, 255, 0.6)'
+        ctx.shadowColor = 'rgba(200, 100, 255, 0.6)'
         
         const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, triangleSize)
-        gradient.addColorStop(0, 'rgba(120, 200, 255, 0.4)')
-        gradient.addColorStop(1, 'rgba(80, 160, 255, 0.1)')
+        gradient.addColorStop(0, 'rgba(220, 120, 255, 0.4)')
+        gradient.addColorStop(1, 'rgba(180, 80, 255, 0.1)')
         ctx.fillStyle = gradient
 
         ctx.beginPath()
@@ -113,7 +113,7 @@ export default function Web3Background() {
         ctx.fill()
 
         ctx.shadowBlur = 0
-        ctx.strokeStyle = 'rgba(150, 210, 255, 0.3)'
+        ctx.strokeStyle = 'rgba(230, 150, 255, 0.3)'
         ctx.lineWidth = 1
         ctx.stroke()
 
