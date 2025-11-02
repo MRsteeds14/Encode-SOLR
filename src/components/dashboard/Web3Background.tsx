@@ -27,14 +27,14 @@ export default function Web3Background() {
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
 
-    const nodeCount = 12
+    const nodeCount = 25
     const connectionDistance = 250
 
     nodesRef.current = Array.from({ length: nodeCount }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.5,
-      vy: (Math.random() - 0.5) * 0.5,
+      vx: (Math.random() - 0.5) * 1.2,
+      vy: (Math.random() - 0.5) * 1.2,
     }))
 
     const animate = () => {
@@ -76,7 +76,7 @@ export default function Web3Background() {
       ctx.lineWidth = 2
 
       nodesRef.current.forEach(node => {
-        const size = 20
+        const size = 12
         ctx.beginPath()
         ctx.moveTo(node.x, node.y - size / 2)
         ctx.lineTo(node.x - size / 2, node.y + size / 2)
