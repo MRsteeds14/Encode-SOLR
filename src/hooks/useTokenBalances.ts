@@ -14,7 +14,7 @@ export function useSARCBalance(address: string | undefined) {
     contract: sarcTokenContract,
     method: 'function balanceOf(address) view returns (uint256)',
     params: address ? [address] : undefined,
-  });
+  } as any);
 }
 
 /**
@@ -25,7 +25,7 @@ export function useUSDCBalance(address: string | undefined) {
     contract: usdcContract,
     method: 'function balanceOf(address) view returns (uint256)',
     params: address ? [address] : undefined,
-  });
+  } as any);
 }
 
 /**

@@ -1,0 +1,9 @@
+{
+  "name": "solr-arc-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for SOLR-ARC solar energy tokenization platform",
+  "private": true,
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0"
+  }
+}

@@ -15,7 +15,7 @@ export function useCalculateRedemption(sarcAmount: bigint | undefined) {
     contract: treasuryContract,
     method: 'function calculateRedemptionAmount(uint256) view returns (uint256)',
     params: sarcAmount ? [sarcAmount] : undefined,
-  });
+  } as any);
 }
 
 /**

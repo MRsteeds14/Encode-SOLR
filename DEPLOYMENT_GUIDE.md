@@ -49,18 +49,61 @@ open https://testnet.arcscan.app/address/0x9e7D0d9775d9bacE19B97C8d25C6e572DdbaC
 
 ---
 
-### Step 2: Deploy Contracts (45 minutes)
+### Step 2: Install Dependencies (5 minutes)
+
+**Install OpenZeppelin Contracts:**
+```bash
+cd /Users/sommers-j/Documents/solr-arc-solar-energ/contracts
+npm install
+```
+
+**What This Does:**
+- Installs `@openzeppelin/contracts` needed by your Solidity files
+- Ensures Thirdweb CLI can compile Registry, Treasury, and MintingController
+
+**✅ Expected Output:**
+```
+added 1 package, and audited 2 packages in 3s
+```
+
+---
+
+### Step 3: Deploy Contracts (45 minutes)
+
+**⚠️ CRITICAL: Run from contracts directory**
+The `npx thirdweb deploy` command MUST be run from the `contracts/` directory where `foundry.toml` is located.
 
 **Run Thirdweb Deploy:**
 ```bash
-cd /Users/sommers-j/Documents/solr-arc-solar-energ
+cd /Users/sommers-j/Documents/solr-arc-solar-energ/contracts
 npx thirdweb deploy
 ```
 
+**If using secret key (optional):**
+```bash
+npx thirdweb deploy -k YOUR_SECRET_KEY_HERE
+```
+
+**⚠️ Important about the `-k` flag:**
+- When docs show `-k <your-key>`, the `<>` brackets mean "replace this"
+- DO NOT type the `<>` brackets - they cause `zsh: parse error`
+- Example: `-k abc123` NOT `-k <abc123>`
+
 **What Happens:**
-1. CLI compiles all contracts in `contracts/src/`
-2. Browser opens to Thirdweb dashboard
-3. You see 3 contracts ready to deploy
+1. CLI detects `foundry.toml` configuration
+2. CLI compiles all contracts in `contracts/src/`
+3. Browser opens to Thirdweb dashboard
+4. You see 3 contracts ready to deploy
+
+**Common Errors & Solutions:**
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `No contracts detected` | Wrong directory or missing foundry.toml | Run from `contracts/` directory |
+| `zsh: parse error near '\n'` | Using `<>` brackets in command | Remove `<>` brackets from `-k` flag |
+| `Cannot find module '@openzeppelin'` | Dependencies not installed | Run `cd contracts && npm install` |
+| `thirdweb: command not found` | CLI not installed | Run `npm install -g thirdweb` |
+| Browser doesn't open | CLI needs permissions | Check firewall/browser settings |
 
 ---
 
@@ -325,9 +368,9 @@ usdcToken.balanceOf(producer)
 - [ ] Thirdweb CLI ready
 
 ### Deployment:
-- [ ] Registry deployed
-- [ ] Treasury deployed (with correct parameters!)
-- [ ] MintingController deployed
+- [x] Registry deployed
+- [x] Treasury deployed (with correct parameters!)
+- [x] MintingController deployed
 
 ### Configuration:
 - [ ] sARC → MintingController MINTER_ROLE granted
@@ -339,7 +382,8 @@ usdcToken.balanceOf(producer)
 - [ ] Treasury funded with 1000 USDC
 
 ### Frontend:
-- [ ] Contract addresses updated in contracts.ts
+- [x] Contract addresses updated in contracts.ts
+- [x] Contract addresses updated in constants.ts
 - [ ] .env.local updated with addresses
 - [ ] AI agent credentials saved
 
@@ -366,13 +410,13 @@ usdcToken.balanceOf(producer)
 **Your Wallet:**
 - Deployment Wallet: `0x9e7D0d9775d9bacE19B97C8d25C6e572DdbaC072`
 
-**Deployed Contracts:**
-- Registry: _________________ (fill after deployment)
-- Treasury: _________________ (fill after deployment)
-- MintingController: _________________ (fill after deployment)
+**Deployed Contracts (November 4, 2025):**
+- Registry: `0x90b4883040f64aB37678382dE4e0fAa67B1126e1` ✅
+- Treasury: `0x8825518674A89e28d2C11CA0Ec49024ef6e1E2b2` ✅
+- MintingController: `0x186c2987F138f3784913e5e42f0cee4512b89C3E` ✅
 
 **AI Agent:**
-- Wallet: _________________ (fill after creation)
+- Wallet: _________________ (create using ROLE_GRANTING_GUIDE.md)
 
 ---
 
@@ -380,15 +424,15 @@ usdcToken.balanceOf(producer)
 
 | Task | Duration | Status |
 |------|----------|--------|
-| Fund wallet | 5 min | Pending |
-| Deploy Registry | 10 min | Pending |
-| Deploy Treasury | 15 min | Pending |
-| Deploy MintingController | 20 min | Pending |
-| Grant all roles | 30 min | Pending |
+| Fund wallet | 5 min | ✅ Complete |
+| Deploy Registry | 10 min | ✅ Complete |
+| Deploy Treasury | 15 min | ✅ Complete |
+| Deploy MintingController | 20 min | ✅ Complete |
+| Grant all roles | 30 min | ⏳ In Progress |
 | Register producer + fund | 20 min | Pending |
-| Update frontend | 5 min | Pending |
+| Update frontend | 5 min | ✅ Complete |
 | Testing | 30 min | Pending |
-| **TOTAL** | **~2 hours** | **0% Complete** |
+| **TOTAL** | **~2 hours** | **~60% Complete** |
 
 ---
 

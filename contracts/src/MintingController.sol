@@ -2,8 +2,21 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+// Interface definitions for external contracts
+interface IRegistry {
+    function isWhitelisted(address _producer) external view returns (bool);
+    function validateDailyProduction(address _producer, uint256 _kwhAmount)
+        external view returns (bool isValid, string memory reason);
+    function recordProduction(address _producer, uint256 _kwhAmount, uint256 _mintedAmount) external;
+}
+
+interface ISARCToken {
+    function mint(address to, uint256 amount) external;
+    function totalSupply() external view returns (uint256);
+}
 
 /**
  * @title MintingController
@@ -13,19 +26,6 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 contract MintingController is AccessControl, Pausable, ReentrancyGuard {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
-
-    // Interface definitions for external contracts
-    interface IRegistry {
-        function isWhitelisted(address _producer) external view returns (bool);
-        function validateDailyProduction(address _producer, uint256 _kwhAmount)
-            external view returns (bool isValid, string memory reason);
-        function recordProduction(address _producer, uint256 _kwhAmount, uint256 _mintedAmount) external;
-    }
-
-    interface ISARCToken {
-        function mint(address to, uint256 amount) external;
-        function totalSupply() external view returns (uint256);
-    }
 
     IRegistry public registry;
     ISARCToken public sarcToken;

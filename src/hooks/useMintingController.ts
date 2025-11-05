@@ -34,7 +34,7 @@ export function useProducerStats(address: string | undefined) {
     contract: mintingControllerContract,
     method: 'function getProducerStats(address) view returns (uint256)',
     params: address ? [address] : undefined,
-  });
+  } as any);
 }
 
 /**

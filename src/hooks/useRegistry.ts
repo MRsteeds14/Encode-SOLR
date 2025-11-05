@@ -15,7 +15,7 @@ export function useIsWhitelisted(address: string | undefined) {
     contract: registryContract,
     method: 'function isWhitelisted(address) view returns (bool)',
     params: address ? [address] : undefined,
-  });
+  } as any);
 }
 
 /**
@@ -26,7 +26,7 @@ export function useProducerProfile(address: string | undefined) {
     contract: registryContract,
     method: 'function getProducer(address) view returns (tuple(bool isWhitelisted, uint256 systemCapacityKw, uint256 dailyCapKwh, uint256 totalMinted, uint256 lastMintTimestamp, string ipfsMetadata, uint256 registrationDate))',
     params: address ? [address] : undefined,
-  });
+  } as any);
 }
 
 /**
@@ -40,7 +40,7 @@ export function useValidateDailyProduction(
     contract: registryContract,
     method: 'function validateDailyProduction(address, uint256) view returns (bool isValid, string reason)',
     params: address && kwhAmount ? [address, kwhAmount] : undefined,
-  });
+  } as any);
 }
 
 /**

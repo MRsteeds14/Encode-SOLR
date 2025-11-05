@@ -4,8 +4,10 @@ import { Toaster, toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Sun, Lightning, ChartLine, ArrowsLeftRight, UserCircle, Coins, CurrencyCircleDollar } from '@phosphor-icons/react'
+import { useActiveAccount } from 'thirdweb/react'
 import solrarcLogo from '@/assets/images/SOLRARC.JPG'
 
+import { Navigation } from '@/components/Navigation'
 import { WalletButton } from '@/components/wallet/WalletButton'
 import { StatsCard } from '@/components/dashboard/StatsCard'
 import { EnergyChart } from '@/components/dashboard/EnergyChart'
@@ -15,40 +17,73 @@ import { GlowOrb } from '@/components/dashboard/GlowOrb'
 import { EnergyInput } from '@/components/minting/EnergyInput'
 import { AgentStatus } from '@/components/minting/AgentStatus'
 import { RedemptionForm } from '@/components/redemption/RedemptionForm'
+import { RegisterSystem } from '@/components/RegisterSystem'
 
 import { Transaction, WalletState, ProducerProfile, EnergyData, AgentStatus as AgentStatusType, TokenBalance } from '@/types'
-import { DEMO_WALLET_ADDRESS, ARC_TESTNET, EXCHANGE_RATE } from '@/lib/constants'
+import { ARC_TESTNET, EXCHANGE_RATE } from '@/lib/constants'
 import { generateTxHash, generateIpfsHash, formatNumber, formatCurrency, generateEnergyData } from '@/lib/helpers'
+import { useProducerStatus } from '@/hooks/useProducerStatus'
+import { useBalances } from '@/hooks/useTokenBalances'
+import { pogAgentAPI, type AgentProcessingStatus } from '@/lib/pog-agent-api'
+import { useRedeemForUSDC } from '@/hooks/useTreasury'
+import { useSendTransaction } from 'thirdweb/react'
+import { prepareContractCall } from 'thirdweb'
+import { sarcTokenContract, treasuryContract } from '@/lib/contracts'
+import { CONTRACT_ADDRESSES } from '@/lib/contracts'
 
 function App() {
-  const [wallet, setWallet] = useKV<WalletState>('wallet', {
-    connected: false,
-    address: null,
-    network: ARC_TESTNET.name,
-  })
+  // Get connected wallet from Thirdweb
+  const activeAccount = useActiveAccount()
+  const walletAddress = activeAccount?.address
 
-  const [balance, setBalance] = useKV<TokenBalance>('balance', {
-    sarc: 0,
-    usdc: 0,
-  })
-
-  const [transactions, setTransactions] = useKV<Transaction[]>('transactions', [])
+  // Check if user is registered as a producer
+  const { isRegistered, producerData, isLoading: isCheckingRegistration, refetch: refetchProducerStatus, error: registrationError } = useProducerStatus(walletAddress)
   
-  const [profile, setProfile] = useKV<ProducerProfile>('profile', {
-    address: DEMO_WALLET_ADDRESS,
-    systemCapacity: 10,
-    dailyCap: 100,
-    totalGenerated: 0,
-    totalEarned: 0,
-    joinedDate: Date.now(),
-  })
+  // Get token balances from blockchain
+  const { sarc: sarcBalance, usdc: usdcBalance } = useBalances(walletAddress)
 
-  const [energyData, setEnergyData] = useKV<EnergyData[]>('energyData', generateEnergyData(30))
+  // Redemption hook for Treasury contract
+  const { redeemForUSDC, isPending: isRedeeming } = useRedeemForUSDC()
 
+  // Transaction hook for token approval
+  const { mutate: sendApprovalTx, isPending: isApproving } = useSendTransaction()
+
+  // Debug logging
+  useEffect(() => {
+    if (walletAddress) {
+      console.log('👛 Wallet connected:', walletAddress);
+      console.log('📋 Registration status:', { isRegistered, isCheckingRegistration, producerData });
+      if (registrationError) {
+        console.error('❌ Registration check error:', registrationError);
+      }
+    }
+  }, [walletAddress, isRegistered, isCheckingRegistration, producerData, registrationError]);
+
+  // Local state for UI
+  const [transactions, setTransactions] = useKV<Transaction[]>(`transactions_${walletAddress}`, [])
+  const [energyData, setEnergyData] = useKV<EnergyData[]>(`energyData_${walletAddress}`, generateEnergyData(30))
   const [activeTab, setActiveTab] = useState('overview')
   const [minting, setMinting] = useState(false)
   const [agents, setAgents] = useState<AgentStatusType[]>([])
   const [progress, setProgress] = useState(0)
+
+  // Derived profile from blockchain data
+  const profile: ProducerProfile | null = producerData?.isWhitelisted ? {
+    address: walletAddress!,
+    systemCapacity: Number(producerData.systemCapacityKw),
+    dailyCap: Number(producerData.dailyCapKwh),
+    totalGenerated: Number(producerData.totalMinted),
+    totalEarned: (transactions || [])
+      .filter(tx => tx.type === 'redeem')
+      .reduce((sum, tx) => sum + (tx.usdcAmount || 0), 0),
+    joinedDate: Number(producerData.registrationDate) * 1000,
+  } : null
+
+  // Token balances (convert from BigInt to number for display)
+  const balance: TokenBalance = {
+    sarc: Number(sarcBalance.balance) / 1e18, // Assuming 18 decimals
+    usdc: Number(usdcBalance.balance) / 1e18,
+  }
 
   const dailyUsed = (transactions || [])
     .filter(tx => {
@@ -57,155 +92,258 @@ function App() {
     })
     .reduce((sum, tx) => sum + tx.amount, 0)
 
-  const handleConnect = () => {
-    const address = DEMO_WALLET_ADDRESS
-    setWallet({
-      connected: true,
-      address,
-      network: ARC_TESTNET.name,
-    })
-    toast.success('Wallet connected successfully!')
+  // Handle successful registration
+  const handleRegistrationSuccess = async () => {
+    console.log('🎉 Registration successful, refetching status...');
+    await refetchProducerStatus()
+    toast.success('Welcome to SOLR-ARC! Your system is now registered.')
   }
 
-  const handleDisconnect = () => {
-    setWallet({
-      connected: false,
-      address: null,
-      network: ARC_TESTNET.name,
-    })
-    toast.info('Wallet disconnected')
-  }
+  const handleMint = async (kwh: number) => {
+    if (!walletAddress) {
+      toast.error('Please connect your wallet first')
+      return
+    }
 
-  const simulateAgentProcessing = async (kwh: number): Promise<{ txHash: string; ipfsHash: string }> => {
     setMinting(true)
     setProgress(0)
 
+    // Initialize agent status display
     const agentSteps: AgentStatusType[] = [
       { name: 'Risk & Policy Agent', status: 'idle', message: 'Waiting to validate...' },
       { name: 'Proof-of-Generation Agent', status: 'idle', message: 'Waiting to process...' },
     ]
-
     setAgents(agentSteps)
 
-    await new Promise(resolve => setTimeout(resolve, 500))
+    try {
+      // Call PoG Agent API with progress tracking
+      const result = await pogAgentAPI.submitGeneration(
+        {
+          producerAddress: walletAddress,
+          kwhGenerated: kwh,
+          timestamp: Date.now(),
+          metadata: {
+            systemCapacity: profile?.systemCapacity,
+          },
+        },
+        (status: AgentProcessingStatus) => {
+          // Update agent status based on processing step
+          switch (status.step) {
+            case 'validating':
+              setAgents([
+                { name: 'Risk & Policy Agent', status: 'processing', message: status.message },
+                { name: 'Proof-of-Generation Agent', status: 'idle', message: 'Waiting to process...' },
+              ])
+              setProgress(status.progress)
+              break
+            case 'uploading':
+            case 'minting':
+              setAgents([
+                { name: 'Risk & Policy Agent', status: 'completed', message: 'Validation passed ✓' },
+                { name: 'Proof-of-Generation Agent', status: 'processing', message: status.message },
+              ])
+              setProgress(status.progress)
+              break
+            case 'confirming':
+              setAgents([
+                { name: 'Risk & Policy Agent', status: 'completed', message: 'Validation passed ✓' },
+                { name: 'Proof-of-Generation Agent', status: 'processing', message: status.message },
+              ])
+              setProgress(status.progress)
+              break
+            case 'completed':
+              setAgents([
+                { name: 'Risk & Policy Agent', status: 'completed', message: 'Validation passed ✓' },
+                { name: 'Proof-of-Generation Agent', status: 'completed', message: status.message },
+              ])
+              setProgress(100)
+              break
+            case 'error':
+              setAgents([
+                { name: 'Risk & Policy Agent', status: 'completed', message: 'Validation passed ✓' },
+                { name: 'Proof-of-Generation Agent', status: 'idle', message: `Error: ${status.message}` },
+              ])
+              break
+          }
+        }
+      )
 
-    setAgents(current => [
-      { ...current[0], status: 'processing', message: 'Validating producer whitelist and daily limits...' },
-      current[1],
-    ])
-    setProgress(25)
-
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    setAgents(current => [
-      { ...current[0], status: 'completed', message: 'Validation passed ✓' },
-      current[1],
-    ])
-    setProgress(50)
-
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    setAgents(current => [
-      current[0],
-      { ...current[1], status: 'processing', message: 'Generating IPFS proof and minting tokens...' },
-    ])
-    setProgress(75)
-
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    const txHash = generateTxHash()
-    const ipfsHash = generateIpfsHash()
-
-    setAgents(current => [
-      current[0],
-      { ...current[1], status: 'completed', message: `Minted ${kwh} sARC tokens ✓` },
-    ])
-    setProgress(100)
-
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    setMinting(false)
-
-    return { txHash, ipfsHash }
-  }
-
-  const handleMint = async (kwh: number) => {
-    if (!wallet?.connected) {
-      toast.error('Please connect your wallet first')
-      return
-    }
-
-    const { txHash, ipfsHash } = await simulateAgentProcessing(kwh)
-
-    const newTransaction: Transaction = {
-      id: Date.now().toString(),
-      type: 'mint',
-      amount: kwh,
-      timestamp: Date.now(),
-      status: 'confirmed',
-      txHash,
-      ipfsHash,
-    }
-
-    setTransactions((current = []) => [newTransaction, ...current].slice(0, 20))
-
-    setBalance((current = { sarc: 0, usdc: 0 }) => ({
-      sarc: current.sarc + kwh,
-      usdc: current.usdc,
-    }))
-
-    setProfile((current = profile!) => ({
-      ...current,
-      totalGenerated: current.totalGenerated + kwh,
-    }))
-
-    const today = new Date().toISOString().split('T')[0]
-    setEnergyData((current = []) => {
-      const updated = [...current]
-      const todayIndex = updated.findIndex(d => d.date === today)
-      if (todayIndex >= 0) {
-        updated[todayIndex].kwh += kwh
-      } else {
-        updated.push({ date: today, kwh })
+      // Create transaction record with real blockchain data
+      const newTransaction: Transaction = {
+        id: Date.now().toString(),
+        type: 'mint',
+        amount: kwh,
+        timestamp: Date.now(),
+        status: 'confirmed',
+        txHash: result.txHash,
+        ipfsHash: result.ipfsProof,
       }
-      return updated.slice(-30)
-    })
+
+      setTransactions((current = []) => [newTransaction, ...current].slice(0, 20))
+
+      // Update energy chart
+      const today = new Date().toISOString().split('T')[0]
+      setEnergyData((current = []) => {
+        const updated = [...current]
+        const todayIndex = updated.findIndex(d => d.date === today)
+        if (todayIndex >= 0) {
+          updated[todayIndex].kwh += kwh
+        } else {
+          updated.push({ date: today, kwh })
+        }
+        return updated.slice(-30)
+      })
+
+      // Show success notification with transaction link
+      toast.success(
+        `Successfully minted ${result.mintedAmount} sARC tokens!`,
+        {
+          description: `View on Arc Testnet: ${result.txHash.slice(0, 10)}...`,
+          action: {
+            label: 'View TX',
+            onClick: () => window.open(`https://testnet.arcscan.app/tx/${result.txHash}`, '_blank'),
+          },
+        }
+      )
+
+      // Refresh balances from blockchain
+      await refetchProducerStatus()
+    } catch (error) {
+      console.error('Minting error:', error)
+      toast.error('Minting failed', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      })
+    } finally {
+      setMinting(false)
+    }
   }
 
   const handleRedeem = async (amount: number) => {
-    if (!wallet?.connected) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet first')
       return
     }
 
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    try {
+      // Convert sARC amount to Wei (18 decimals)
+      const sarcAmountWei = BigInt(Math.floor(amount * 1e18))
 
-    const usdcAmount = amount * EXCHANGE_RATE
+      // Step 1: Approve Treasury to spend sARC tokens
+      toast.info('Step 1/2: Approving Treasury contract...', {
+        description: 'Please confirm the approval transaction in your wallet',
+      })
 
-    const newTransaction: Transaction = {
-      id: Date.now().toString(),
-      type: 'redeem',
-      amount,
-      usdcAmount,
-      timestamp: Date.now(),
-      status: 'confirmed',
-      txHash: generateTxHash(),
+      const approvalTx = prepareContractCall({
+        contract: sarcTokenContract,
+        method: 'function approve(address spender, uint256 amount) returns (bool)',
+        params: [CONTRACT_ADDRESSES.TREASURY, sarcAmountWei],
+      })
+
+      // Send approval transaction
+      await new Promise<void>((resolve, reject) => {
+        sendApprovalTx(approvalTx, {
+          onSuccess: () => {
+            toast.success('Approval confirmed!')
+            resolve()
+          },
+          onError: (error) => {
+            toast.error('Approval failed', {
+              description: error.message,
+            })
+            reject(error)
+          },
+        })
+      })
+
+      // Wait a moment for blockchain to process
+      await new Promise(resolve => setTimeout(resolve, 1500))
+
+      // Step 2: Redeem sARC for USDC
+      toast.info('Step 2/2: Redeeming sARC for USDC...', {
+        description: 'Please confirm the redemption transaction in your wallet',
+      })
+
+      // Generate IPFS metadata for redemption
+      const ipfsMetadata = `QmRedemption-${walletAddress}-${Date.now()}`
+
+      await new Promise<void>((resolve, reject) => {
+        redeemForUSDC(sarcAmountWei, ipfsMetadata)
+
+        // Monitor redemption transaction status
+        const checkStatus = setInterval(() => {
+          if (!isRedeeming) {
+            clearInterval(checkStatus)
+            resolve()
+          }
+        }, 500)
+
+        // Timeout after 30 seconds
+        setTimeout(() => {
+          clearInterval(checkStatus)
+          reject(new Error('Transaction timeout'))
+        }, 30000)
+      })
+
+      // Calculate USDC amount
+      const usdcAmount = amount * EXCHANGE_RATE
+
+      // Create transaction record
+      const newTransaction: Transaction = {
+        id: Date.now().toString(),
+        type: 'redeem',
+        amount,
+        usdcAmount,
+        timestamp: Date.now(),
+        status: 'confirmed',
+        txHash: generateTxHash(), // This will be replaced when we add proper transaction tracking
+      }
+
+      setTransactions((current = []) => [newTransaction, ...current].slice(0, 20))
+
+      // Show success notification
+      toast.success(`Successfully redeemed ${amount} sARC!`, {
+        description: `Received ${usdcAmount.toFixed(2)} USDC`,
+      })
+
+      // Refresh balances from blockchain
+      await refetchProducerStatus()
+    } catch (error) {
+      console.error('Redemption error:', error)
+      toast.error('Redemption failed', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      })
     }
-
-    setTransactions((current = []) => [newTransaction, ...current].slice(0, 20))
-
-    setBalance((current = { sarc: 0, usdc: 0 }) => ({
-      sarc: current.sarc - amount,
-      usdc: current.usdc + usdcAmount,
-    }))
-
-    setProfile((current = profile!) => ({
-      ...current,
-      totalEarned: current.totalEarned + usdcAmount,
-    }))
   }
 
-  if (!wallet?.connected) {
+  // Show loading state while checking registration
+  if (walletAddress && isCheckingRegistration) {
+    return (
+      <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center">
+        <Web3Background />
+        <Toaster position="top-right" />
+        <div className="relative z-10 text-center space-y-4">
+          <GlowOrb size={120} color="primary" className="mx-auto animate-pulse" />
+          <p className="text-muted-foreground">Checking registration status...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show registration form if connected but not registered
+  if (walletAddress && !isRegistered) {
+    return (
+      <>
+        <Toaster position="top-right" />
+        <RegisterSystem 
+          walletAddress={walletAddress} 
+          onSuccess={handleRegistrationSuccess}
+        />
+      </>
+    )
+  }
+
+  // Show landing page if not connected
+  if (!walletAddress) {
     return (
       <div className="min-h-screen bg-background relative overflow-hidden">
         <Web3Background />
@@ -255,11 +393,7 @@ function App() {
               </div>
 
               <div className="pt-4">
-                <WalletButton
-                  wallet={wallet || { connected: false, address: null, network: ARC_TESTNET.name }}
-                  onConnect={handleConnect}
-                  onDisconnect={handleDisconnect}
-                />
+                <WalletButton />
               </div>
 
               <p className="text-xs text-muted-foreground/60">
@@ -280,54 +414,10 @@ function App() {
       
       <Toaster position="top-right" />
       
-      <header className="relative z-50 border-b border-border/50 glass-card sticky top-0">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="relative">
-                <div className="absolute inset-0 rounded-lg bg-primary/20 blur-md"></div>
-                <div className="relative p-1.5 sm:p-2 bg-primary/10 rounded-lg border border-primary/30">
-                  <Sun size={28} weight="fill" className="text-primary sm:w-8 sm:h-8 drop-shadow-[0_0_10px_oklch(0.65_0.25_265)]" />
-                </div>
-              </div>
-              <div>
-                <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">SOLR-ARC</h1>
-                <p className="text-xs text-muted-foreground hidden sm:block">Solar Energy Tokenization</p>
-              </div>
-            </div>
-            
-            <div className="w-full sm:w-auto">
-              <WalletButton
-                wallet={wallet}
-                onConnect={handleConnect}
-                onDisconnect={handleDisconnect}
-              />
-            </div>
-          </div>
-        </div>
-      </header>
+      <Navigation showTabs={true} activeTab={activeTab} onTabChange={setActiveTab} />
 
       <main className="relative z-10 container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-4 h-auto glass-card p-1">
-            <TabsTrigger value="overview" className="gap-1.5 sm:gap-2 flex-col sm:flex-row py-2 sm:py-1.5 data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-              <ChartLine size={18} className="flex-shrink-0" />
-              <span className="text-xs sm:text-sm">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger value="mint" className="gap-1.5 sm:gap-2 flex-col sm:flex-row py-2 sm:py-1.5 data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-              <Lightning size={18} className="flex-shrink-0" />
-              <span className="text-xs sm:text-sm">Mint</span>
-            </TabsTrigger>
-            <TabsTrigger value="redeem" className="gap-1.5 sm:gap-2 flex-col sm:flex-row py-2 sm:py-1.5 data-[state=active]:bg-accent/20 data-[state=active]:text-accent">
-              <ArrowsLeftRight size={18} className="flex-shrink-0" />
-              <span className="text-xs sm:text-sm">Redeem</span>
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="gap-1.5 sm:gap-2 flex-col sm:flex-row py-2 sm:py-1.5 data-[state=active]:bg-secondary/20 data-[state=active]:text-secondary">
-              <UserCircle size={18} className="flex-shrink-0" />
-              <span className="text-xs sm:text-sm">Profile</span>
-            </TabsTrigger>
-          </TabsList>
-
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatsCard
