@@ -1,0 +1,17 @@
+{
+  "name": "solr-arc-pog-agent",
+  "version": "1.0.0",
+  "description": "Proof-of-Generation Agent for SOLR-ARC",
+  "main": "index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "ethers": "^6.9.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241011.0",
+    "wrangler": "^3.80.4"
+  }
+}
