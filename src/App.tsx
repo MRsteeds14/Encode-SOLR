@@ -5,7 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Sun, Lightning, ChartLine, ArrowsLeftRight, UserCircle, Coins, CurrencyCircleDollar } from '@phosphor-icons/react'
 import { useActiveAccount } from 'thirdweb/react'
-import solrarcLogo from '@/assets/images/SOLRARC.JPG'
 
 import { Navigation } from '@/components/Navigation'
 import { WalletButton } from '@/components/wallet/WalletButton'
@@ -20,8 +19,8 @@ import { RedemptionForm } from '@/components/redemption/RedemptionForm'
 import { RegisterSystem } from '@/components/RegisterSystem'
 
 import { Transaction, WalletState, ProducerProfile, EnergyData, AgentStatus as AgentStatusType, TokenBalance } from '@/types'
-import { ARC_TESTNET, EXCHANGE_RATE } from '@/lib/constants'
-import { generateTxHash, generateIpfsHash, formatNumber, formatCurrency, generateEnergyData } from '@/lib/helpers'
+import { ARC_TESTNET, EXCHANGE_RATE, USDC_DECIMALS } from '@/lib/constants'
+import { generateTxHash, formatNumber, formatCurrency, generateEnergyData } from '@/lib/helpers'
 import { useProducerStatus } from '@/hooks/useProducerStatus'
 import { useBalances } from '@/hooks/useTokenBalances'
 import { pogAgentAPI, type AgentProcessingStatus } from '@/lib/pog-agent-api'
@@ -30,6 +29,7 @@ import { useSendTransaction } from 'thirdweb/react'
 import { prepareContractCall } from 'thirdweb'
 import { sarcTokenContract, treasuryContract } from '@/lib/contracts'
 import { CONTRACT_ADDRESSES } from '@/lib/contracts'
+import { formatUnits, parseUnits } from 'ethers'
 
 function App() {
   // Get connected wallet from Thirdweb
@@ -43,10 +43,10 @@ function App() {
   const { sarc: sarcBalance, usdc: usdcBalance } = useBalances(walletAddress)
 
   // Redemption hook for Treasury contract
-  const { redeemForUSDC, isPending: isRedeeming } = useRedeemForUSDC()
+  const { redeemForUSDC } = useRedeemForUSDC()
 
   // Transaction hook for token approval
-  const { mutate: sendApprovalTx, isPending: isApproving } = useSendTransaction()
+  const { mutateAsync: sendApprovalTx } = useSendTransaction()
 
   // Debug logging
   useEffect(() => {
@@ -81,8 +81,8 @@ function App() {
 
   // Token balances (convert from BigInt to number for display)
   const balance: TokenBalance = {
-    sarc: Number(sarcBalance.balance) / 1e18, // Assuming 18 decimals
-    usdc: Number(usdcBalance.balance) / 1e18,
+    sarc: Number(formatUnits(sarcBalance.balance ?? 0n, 18)),
+    usdc: Number(formatUnits(usdcBalance.balance ?? 0n, USDC_DECIMALS)),
   }
 
   const dailyUsed = (transactions || [])
@@ -225,8 +225,8 @@ function App() {
     }
 
     try {
-      // Convert sARC amount to Wei (18 decimals)
-      const sarcAmountWei = BigInt(Math.floor(amount * 1e18))
+      const amountAsString = amount.toString()
+      const sarcAmountWei = parseUnits(amountAsString, 18)
 
       // Step 1: Approve Treasury to spend sARC tokens
       toast.info('Step 1/2: Approving Treasury contract...', {
@@ -239,55 +239,20 @@ function App() {
         params: [CONTRACT_ADDRESSES.TREASURY, sarcAmountWei],
       })
 
-      // Send approval transaction
-      await new Promise<void>((resolve, reject) => {
-        sendApprovalTx(approvalTx, {
-          onSuccess: () => {
-            toast.success('Approval confirmed!')
-            resolve()
-          },
-          onError: (error) => {
-            toast.error('Approval failed', {
-              description: error.message,
-            })
-            reject(error)
-          },
-        })
-      })
-
-      // Wait a moment for blockchain to process
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await sendApprovalTx(approvalTx)
+      toast.success('Approval confirmed!')
 
       // Step 2: Redeem sARC for USDC
       toast.info('Step 2/2: Redeeming sARC for USDC...', {
         description: 'Please confirm the redemption transaction in your wallet',
       })
 
-      // Generate IPFS metadata for redemption
       const ipfsMetadata = `QmRedemption-${walletAddress}-${Date.now()}`
+      const redemptionResult = await redeemForUSDC(sarcAmountWei, ipfsMetadata)
 
-      await new Promise<void>((resolve, reject) => {
-        redeemForUSDC(sarcAmountWei, ipfsMetadata)
-
-        // Monitor redemption transaction status
-        const checkStatus = setInterval(() => {
-          if (!isRedeeming) {
-            clearInterval(checkStatus)
-            resolve()
-          }
-        }, 500)
-
-        // Timeout after 30 seconds
-        setTimeout(() => {
-          clearInterval(checkStatus)
-          reject(new Error('Transaction timeout'))
-        }, 30000)
-      })
-
-      // Calculate USDC amount
+      const redemptionHash = redemptionResult?.transactionHash
       const usdcAmount = amount * EXCHANGE_RATE
 
-      // Create transaction record
       const newTransaction: Transaction = {
         id: Date.now().toString(),
         type: 'redeem',
@@ -295,17 +260,15 @@ function App() {
         usdcAmount,
         timestamp: Date.now(),
         status: 'confirmed',
-        txHash: generateTxHash(), // This will be replaced when we add proper transaction tracking
+        txHash: redemptionHash || generateTxHash(),
       }
 
       setTransactions((current = []) => [newTransaction, ...current].slice(0, 20))
 
-      // Show success notification
-      toast.success(`Successfully redeemed ${amount} sARC!`, {
-        description: `Received ${usdcAmount.toFixed(2)} USDC`,
+      toast.success(`Successfully redeemed ${formatNumber(amount)} sARC!`, {
+        description: `Received ${formatCurrency(usdcAmount)}`,
       })
 
-      // Refresh balances from blockchain
       await refetchProducerStatus()
     } catch (error) {
       console.error('Redemption error:', error)

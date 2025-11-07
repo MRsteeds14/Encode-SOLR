@@ -1,33 +1,12 @@
 /**
- * Thirdweb Configuration for SOLR-ARC
- * Connects to Arc Testnet with your client ID
+ * Thirdweb configuration helpers for SOLR-ARC
+ * Exposes the shared Client ID and default chain for the app
  */
 
-import { createThirdwebClient, defineChain } from 'thirdweb';
+import { arcTestnet } from './chains';
 
-// Your Thirdweb Client ID
-export const THIRDWEB_CLIENT_ID = import.meta.env.VITE_THIRDWEB_CLIENT_ID || 'f4f554536916e8c00f22a8bd2a2049d0';
+export const THIRDWEB_CLIENT_ID =
+  import.meta.env.VITE_THIRDWEB_CLIENT_ID || 'f4f554536916e8c00f22a8bd2a2049d0';
 
-// Initialize Thirdweb client
-export const thirdwebClient = createThirdwebClient({
-  clientId: THIRDWEB_CLIENT_ID,
-});
-
-// Define Arc Testnet chain for Thirdweb
-export const arcTestnetChain = defineChain({
-  id: 5042002,
-  name: 'Arc Testnet',
-  nativeCurrency: {
-    name: 'USDC',
-    symbol: 'USDC',
-    decimals: 18, // Native USDC for gas
-  },
-  blockExplorers: [
-    {
-      name: 'ArcScan',
-      url: 'https://testnet.arcscan.app',
-    },
-  ],
-  testnet: true,
-  rpc: 'https://rpc.testnet.arc.network',
-});
+// Default chain used across the app (Arc Testnet)
+export const DEFAULT_CHAIN = arcTestnet;

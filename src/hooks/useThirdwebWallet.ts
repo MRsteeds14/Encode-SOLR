@@ -5,7 +5,9 @@
 
 import { useConnect, useActiveAccount, useDisconnect } from 'thirdweb/react';
 import { createWallet } from 'thirdweb/wallets';
-import { arcTestnetChain } from '@/lib/thirdweb-config';
+import { DEFAULT_CHAIN } from '@/lib/thirdweb-config';
+import { client } from '@/lib/thirdweb-client';
+import { arcTestnet } from '@/lib/chains';
 
 export function useThirdwebWallet() {
   const account = useActiveAccount();
@@ -20,8 +22,8 @@ export function useThirdwebWallet() {
       // Connect to Arc Testnet
       await connect(async () => {
         await wallet.connect({
-          client: thirdwebClient,
-          chain: arcTestnetChain,
+          client,
+          chain: DEFAULT_CHAIN ?? arcTestnet,
         });
         return wallet;
       });

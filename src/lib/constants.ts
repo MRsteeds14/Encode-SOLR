@@ -34,3 +34,5 @@ export const ARC_CCTP = {
 export const EXCHANGE_RATE = 0.10
 
 export const MAX_DAILY_KWH = 100
+
+export const USDC_DECIMALS = 6

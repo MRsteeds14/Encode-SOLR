@@ -7,13 +7,27 @@ import { getContract } from 'thirdweb';
 import { client } from './thirdweb-client';
 import { arcTestnet } from './chains';
 
-// Contract Addresses on Arc Testnet
-// Deployed on: November 4, 2025
+const FALLBACK_CONTRACT_ADDRESSES = {
+  SARC_TOKEN: '0x9604ad29C8fEe0611EcE73a91e192E5d976E2184',
+  REGISTRY: '0x90b4883040f64aB37678382dE4e0fAa67B1126e1',
+  TREASURY: '0x8825518674A89e28d2C11CA0Ec49024ef6e1E2b2',
+  MINTING_CONTROLLER: '0x186c2987F138f3784913e5e42f0cee4512b89C3E',
+} as const;
+
+function getEnvAddress(key: string, fallback: string) {
+  const value = import.meta.env[key as keyof ImportMetaEnv] as string | undefined;
+  return value && value.length > 0 ? value : fallback;
+}
+
+// Contract Addresses resolved from environment (fallback to known deployments)
 export const CONTRACT_ADDRESSES = {
-  SARC_TOKEN: '0x9604ad29C8fEe0611EcE73a91e192E5d976E2184', // Pre-existing sARC token
-  REGISTRY: '0x90b4883040f64aB37678382dE4e0fAa67B1126e1', // Deployed
-  TREASURY: '0x8825518674A89e28d2C11CA0Ec49024ef6e1E2b2', // Deployed
-  MINTING_CONTROLLER: '0x186c2987F138f3784913e5e42f0cee4512b89C3E', // Deployed
+  SARC_TOKEN: getEnvAddress('VITE_SARC_TOKEN', FALLBACK_CONTRACT_ADDRESSES.SARC_TOKEN),
+  REGISTRY: getEnvAddress('VITE_REGISTRY_ADDRESS', FALLBACK_CONTRACT_ADDRESSES.REGISTRY),
+  TREASURY: getEnvAddress('VITE_TREASURY_ADDRESS', FALLBACK_CONTRACT_ADDRESSES.TREASURY),
+  MINTING_CONTROLLER: getEnvAddress(
+    'VITE_MINTING_CONTROLLER_ADDRESS',
+    FALLBACK_CONTRACT_ADDRESSES.MINTING_CONTROLLER,
+  ),
 } as const;
 
 // Registry Contract - Manages solar producer whitelisting and validation

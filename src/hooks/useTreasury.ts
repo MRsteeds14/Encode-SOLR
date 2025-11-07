@@ -42,7 +42,7 @@ export function useExchangeRate() {
  * Redeem sARC tokens for USDC
  */
 export function useRedeemForUSDC() {
-  const { mutate: sendTx, isPending, isSuccess, isError, error, data } = useSendTransaction();
+  const { mutateAsync, isPending, isSuccess, isError, error, data } = useSendTransaction();
 
   const redeemForUSDC = async (sarcAmount: bigint, ipfsProof: string) => {
     const transaction = prepareContractCall({
@@ -51,7 +51,7 @@ export function useRedeemForUSDC() {
       params: [sarcAmount, ipfsProof],
     });
 
-    return sendTx(transaction);
+    return mutateAsync(transaction);
   };
 
   return {
