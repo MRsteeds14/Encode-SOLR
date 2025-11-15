@@ -32,3 +32,26 @@ pids
 .devcontainer/
 
 .spark-workbench-id
+
+#databases 
+node_modules/
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.local
+.env.production
+dist/
+build/
+*.log
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+temp/
+tmp/
