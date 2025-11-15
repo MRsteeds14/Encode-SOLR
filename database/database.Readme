@@ -1,0 +1,22 @@
+# SOLR-ARC Database Schema
+
+## Setup
+```bash
+npm install better-sqlite3
+node setup-database.cjs
+```
+
+## Tables
+
+- **users** - Solar energy producers
+- **solar_systems** - Solar panel installations
+- **energy_submissions** - kWh generation data
+- **transactions** - Token mint/redeem records
+- **agent_logs** - AI agent activity
+- **ipfs_proofs** - Verification metadata
+- **wallet_connections** - Blockchain wallet links
+
+## Adding New Migrations
+
+1. Create `008_your_feature.sql` in `database/migrations/`
+2. Run `node setup-database.cjs` to rebuild
